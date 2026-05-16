@@ -19,6 +19,13 @@ type Hover = {
   text: string
 }
 
+type HoverHandler = (
+  text: string,
+  uuid?: string,
+  mountpoint?: string,
+  key?: string,
+) => (event: MouseEvent) => void
+
 type LsblkColumn = {
   name: string
   start: number
@@ -53,14 +60,13 @@ const fieldUuid = (field: Field): string | undefined =>
     ? field.text.slice(5)
     : undefined
 
+const fieldMountpoint = (field: Field): string | undefined =>
+  field.name === "file" && field.text.startsWith("/") ? field.text : undefined
+
 const renderOptionFields = (
   lineNumber: number,
   field: Field,
-  showHover: (
-    text: string,
-    uuid?: string,
-    key?: string,
-  ) => (event: MouseEvent) => void,
+  showHover: HoverHandler,
   activeKey: string | null,
 ) => {
   let cursor = 0
@@ -74,7 +80,7 @@ const renderOptionFields = (
       <span
         class={`mntops${activeKey === key ? " active" : ""}`}
         data-hover="1"
-        onMouseMove={showHover(text, undefined, key)}
+        onMouseMove={showHover(text, undefined, undefined, key)}
       >
         {option}
       </span>,
@@ -86,12 +92,9 @@ const renderField = (
   lineNumber: number,
   field: Field,
   extra: boolean,
-  showHover: (
-    text: string,
-    uuid?: string,
-    key?: string,
-  ) => (event: MouseEvent) => void,
+  showHover: HoverHandler,
   activeUuid: string | null,
+  activeMountpoint: string | null,
   activeKey: string | null,
 ) => {
   if (field.name === "mntops" && !extra) {
@@ -100,15 +103,17 @@ const renderField = (
 
   const text = extra ? `extra: ${field.text}` : fieldTitle(field)
   const uuid = fieldUuid(field)
+  const mountpoint = fieldMountpoint(field)
   const key = `fstab:${lineNumber}:${field.start}:${field.end}`
-  const active = uuid && activeUuid === uuid || activeKey === key
+  const active = uuid && activeUuid === uuid ||
+      mountpoint && activeMountpoint === mountpoint || activeKey === key
     ? " active"
     : ""
   return (
     <span
       class={`${tokenClass(field, extra)}${active}`}
       data-hover="1"
-      onMouseMove={showHover(text, uuid, key)}
+      onMouseMove={showHover(text, uuid, mountpoint, key)}
     >
       {field.text}
     </span>
@@ -117,12 +122,9 @@ const renderField = (
 
 const renderFields = (
   line: ParsedLine,
-  showHover: (
-    text: string,
-    uuid?: string,
-    key?: string,
-  ) => (event: MouseEvent) => void,
+  showHover: HoverHandler,
   activeUuid: string | null,
+  activeMountpoint: string | null,
   activeKey: string | null,
 ) => {
   const tokens = [
@@ -135,7 +137,15 @@ const renderFields = (
     cursor = field.end
     return [
       before,
-      renderField(line.number, field, extra, showHover, activeUuid, activeKey),
+      renderField(
+        line.number,
+        field,
+        extra,
+        showHover,
+        activeUuid,
+        activeMountpoint,
+        activeKey,
+      ),
     ]
   }).concat(renderTail(line.raw.slice(cursor)))
 }
@@ -211,18 +221,27 @@ const lsblkColumns = (text: string): LsblkColumn[] => {
 const cleanDeviceName = (value: string) =>
   value.trim().replace(/^[^A-Za-z0-9/]+/, "")
 
+const lsblkMountpoint = (column: string, value: string): string | undefined =>
+  (column === "MOUNTPOINT" || column === "MOUNTPOINTS") &&
+    value.startsWith("/")
+    ? value
+    : undefined
+
 const lsblkClass = (
   column: string,
   value: string,
   activeUuid: string | null,
+  activeMountpoint: string | null,
   activeKey: string | null,
   key: string,
 ) => {
   const columnKey = column.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+  const mountpoint = lsblkMountpoint(column, value)
   return [
     "lsblk-token",
     `lsblk-${columnKey}`,
-    column === "UUID" && value === activeUuid || activeKey === key
+    column === "UUID" && value === activeUuid ||
+      mountpoint && activeMountpoint === mountpoint || activeKey === key
       ? "active"
       : "",
   ].filter(Boolean).join(" ")
@@ -285,11 +304,7 @@ const renderLsblkFallback = (
   uuids: Set<string>,
   activeUuid: string | null,
   activeKey: string | null,
-  showHover: (
-    text: string,
-    uuid?: string,
-    key?: string,
-  ) => (event: MouseEvent) => void,
+  showHover: HoverHandler,
 ) => {
   const matches = [...line.matchAll(/[0-9A-Fa-f]{4,}(?:-[0-9A-Fa-f]{4,})+/g)]
   let cursor = 0
@@ -307,7 +322,12 @@ const renderLsblkFallback = (
             activeUuid === uuid || activeKey === key ? " active" : ""
           }`}
           data-hover="1"
-          onMouseMove={showHover(`block device UUID ${uuid}`, uuid, key)}
+          onMouseMove={showHover(
+            `block device UUID ${uuid}`,
+            uuid,
+            undefined,
+            key,
+          )}
         >
           {uuid}
         </span>,
@@ -322,12 +342,9 @@ const renderLsblkLine = (
   columns: LsblkColumn[],
   uuids: Set<string>,
   activeUuid: string | null,
+  activeMountpoint: string | null,
   activeKey: string | null,
-  showHover: (
-    text: string,
-    uuid?: string,
-    key?: string,
-  ) => (event: MouseEvent) => void,
+  showHover: HoverHandler,
 ) => {
   if (!columns.length) {
     return renderLsblkFallback(
@@ -352,6 +369,7 @@ const renderLsblkLine = (
     if (!raw) return [before]
 
     const uuid = column.name === "UUID" && uuids.has(value) ? value : undefined
+    const mountpoint = lsblkMountpoint(column.name, value)
     const key = `lsblk:${lineIndex}:${column.name}:${start}`
     const help = lineIndex === 0
       ? lsblkColumnHelp(column.name)
@@ -359,9 +377,16 @@ const renderLsblkLine = (
     return [
       before,
       <span
-        class={lsblkClass(column.name, value, activeUuid, activeKey, key)}
+        class={lsblkClass(
+          column.name,
+          value,
+          activeUuid,
+          activeMountpoint,
+          activeKey,
+          key,
+        )}
         data-hover="1"
-        onMouseMove={showHover(help, uuid, key)}
+        onMouseMove={showHover(help, uuid, mountpoint, key)}
       >
         {raw}
       </span>,
@@ -384,6 +409,9 @@ function App() {
   const [theme, setTheme] = createSignal<Theme>(defaultTheme())
   const [hover, setHover] = createSignal<Hover | null>(null)
   const [activeUuid, setActiveUuid] = createSignal<string | null>(null)
+  const [activeMountpoint, setActiveMountpoint] = createSignal<string | null>(
+    null,
+  )
   const [activeKey, setActiveKey] = createSignal<string | null>(null)
   const parsed = createMemo(() => parseFstab(text()))
   const lsblk = createMemo(() => parseLsblk(lsblkText()))
@@ -404,20 +432,21 @@ function App() {
     new Set(lsblk().devices.map((device) => device.uuid).filter(Boolean))
   )
   const columns = createMemo(() => lsblkColumns(lsblkText()))
-  const showHover =
-    (value: string, uuid?: string, key?: string) => (event: MouseEvent) => {
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-      setHover({
-        x: Math.max(4, Math.min(rect.left, globalThis.innerWidth - 430)),
-        y: rect.top > 40 ? rect.top - 28 : rect.bottom + 6,
-        text: value,
-      })
-      setActiveUuid(uuid ?? null)
-      setActiveKey(key ?? null)
-    }
+  const showHover: HoverHandler = (value, uuid, mountpoint, key) => (event) => {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setHover({
+      x: Math.max(4, Math.min(rect.left, globalThis.innerWidth - 430)),
+      y: rect.top > 40 ? rect.top - 28 : rect.bottom + 6,
+      text: value,
+    })
+    setActiveUuid(uuid ?? null)
+    setActiveMountpoint(mountpoint ?? null)
+    setActiveKey(key ?? null)
+  }
   const hideHover = () => {
     setHover(null)
     setActiveUuid(null)
+    setActiveMountpoint(null)
     setActiveKey(null)
   }
   const hideHoverOnBlank = (event: MouseEvent) => {
@@ -488,7 +517,13 @@ function App() {
           <For each={parsed().lines}>{(line) => (
             <div class={lineClass(line, diagnostics())}>
               <Show when={line.kind === "entry"} fallback={<span class={line.kind}>{line.raw || " "}</span>}>
-                {renderFields(line, showHover, activeUuid(), activeKey())}
+                {renderFields(
+                  line,
+                  showHover,
+                  activeUuid(),
+                  activeMountpoint(),
+                  activeKey(),
+                )}
               </Show>
             </div>
           )}</For>
@@ -529,6 +564,7 @@ function App() {
                   columns(),
                   lsblkUuids(),
                   activeUuid(),
+                  activeMountpoint(),
                   activeKey(),
                   showHover,
                 )}
