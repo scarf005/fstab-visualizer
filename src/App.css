@@ -133,6 +133,10 @@ strong {
   color: var(--spec);
 }
 
+.active {
+  background: color-mix(in srgb, var(--file) 28%, transparent);
+}
+
 .file {
   color: var(--file);
 }
@@ -189,22 +193,51 @@ strong {
   margin-bottom: 4px;
 }
 
-.lsblk textarea {
+.lsblk-editor {
   background: var(--panel);
   border: 1px solid var(--border);
   box-sizing: border-box;
-  color: var(--fg);
-  display: block;
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
   flex: 1 1 auto;
   min-height: 0;
-  outline: 0;
+  position: relative;
+}
+
+.lsblk textarea,
+.lsblk-view {
+  background: transparent;
+  border: 0;
+  box-sizing: border-box;
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  inset: 0;
+  margin: 0;
+  overflow: auto;
   padding: 12px;
-  resize: vertical;
+  position: absolute;
   scrollbar-color: var(--muted) transparent;
   tab-size: 4;
   white-space: pre;
   width: 100%;
+}
+
+.lsblk textarea {
+  caret-color: var(--fg);
+  color: transparent;
+  height: 100%;
+  outline: 0;
+  resize: none;
+  z-index: 2;
+}
+
+.lsblk-view {
+  color: var(--fg);
+  height: 100%;
+  pointer-events: auto;
+  user-select: none;
+  z-index: 3;
+}
+
+.lsblk-uuid {
+  color: var(--spec);
 }
 
 ul {

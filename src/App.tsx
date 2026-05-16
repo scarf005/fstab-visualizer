@@ -23,6 +23,12 @@ UUID=fb2d2f54-b8c1-4f2a-baba-d8a4bb3a4fd0 /home ext4 defaults        0 2
 tmpfs /tmp tmpfs rw,nosuid,nodev,noexec,relatime 0 0
 server:/export /mnt nfs4 noauto,x-systemd.automount 0 0`
 
+const initialLsblk =
+  `NAME   FSTYPE LABEL UUID                                 MOUNTPOINTS
+sda
+├─sda1 ext4   root  8f3b1d0c-0c7d-4b0e-9a2a-1d64bdfd6f01 /
+└─sda2 ext4   home  fb2d2f54-b8c1-4f2a-baba-d8a4bb3a4fd0 /home`
+
 const fieldTitle = (field: Field, column = field.start) =>
   `${fieldLabel(field.name)}: ${explainFieldAt(field, column)}`
 
@@ -34,9 +40,14 @@ const renderTail = (tail: string) => {
   return match ? [match[1], <span class="comment">{match[2]}</span>] : [tail]
 }
 
+const fieldUuid = (field: Field): string | undefined =>
+  field.name === "spec" && field.text.startsWith("UUID=")
+    ? field.text.slice(5)
+    : undefined
+
 const renderOptionFields = (
   field: Field,
-  showHover: (text: string) => (event: MouseEvent) => void,
+  showHover: (text: string, uuid?: string) => (event: MouseEvent) => void,
 ) => {
   let cursor = 0
   return field.text.split(",").flatMap((option, index) => {
@@ -55,15 +66,21 @@ const renderOptionFields = (
 const renderField = (
   field: Field,
   extra: boolean,
-  showHover: (text: string) => (event: MouseEvent) => void,
+  showHover: (text: string, uuid?: string) => (event: MouseEvent) => void,
+  activeUuid: string | null,
 ) => {
   if (field.name === "mntops" && !extra) {
     return renderOptionFields(field, showHover)
   }
 
   const text = extra ? `extra: ${field.text}` : fieldTitle(field)
+  const uuid = fieldUuid(field)
+  const active = uuid && activeUuid === uuid ? " active" : ""
   return (
-    <span class={tokenClass(field, extra)} onMouseMove={showHover(text)}>
+    <span
+      class={`${tokenClass(field, extra)}${active}`}
+      onMouseMove={showHover(text, uuid)}
+    >
       {field.text}
     </span>
   )
@@ -71,7 +88,8 @@ const renderField = (
 
 const renderFields = (
   line: ParsedLine,
-  showHover: (text: string) => (event: MouseEvent) => void,
+  showHover: (text: string, uuid?: string) => (event: MouseEvent) => void,
+  activeUuid: string | null,
 ) => {
   const tokens = [
     ...line.fields.map((field) => ({ field, extra: false })),
@@ -81,7 +99,7 @@ const renderFields = (
   return tokens.flatMap(({ field, extra }) => {
     const before = line.raw.slice(cursor, field.start)
     cursor = field.end
-    return [before, renderField(field, extra, showHover)]
+    return [before, renderField(field, extra, showHover, activeUuid)]
   }).concat(renderTail(line.raw.slice(cursor)))
 }
 
@@ -141,6 +159,33 @@ const textOffsetAt = (
 const diagnosticText = (item: Diagnostic) =>
   item.line ? `L${item.line}:${item.column} ${item.message}` : item.message
 
+const renderLsblkLine = (
+  line: string,
+  uuids: Set<string>,
+  activeUuid: string | null,
+  showHover: (text: string, uuid?: string) => (event: MouseEvent) => void,
+) => {
+  const matches = [...line.matchAll(/[0-9A-Fa-f]{4,}(?:-[0-9A-Fa-f]{4,})+/g)]
+  let cursor = 0
+  return matches.flatMap((match) => {
+    const uuid = match[0]
+    const start = match.index ?? 0
+    const before = line.slice(cursor, start)
+    cursor = start + uuid.length
+    return uuids.has(uuid)
+      ? [
+        before,
+        <span
+          class={`lsblk-uuid${activeUuid === uuid ? " active" : ""}`}
+          onMouseMove={showHover(`lsblk UUID ${uuid}`, uuid)}
+        >
+          {uuid}
+        </span>,
+      ]
+      : [line.slice(start, cursor)]
+  }).concat(line.slice(cursor))
+}
+
 const defaultTheme = (): Theme =>
   globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches
     ? "black"
@@ -149,10 +194,13 @@ const defaultTheme = (): Theme =>
 function App() {
   let mirror!: HTMLPreElement
   let textarea!: HTMLTextAreaElement
+  let lsblkMirror!: HTMLPreElement
+  let lsblkTextarea!: HTMLTextAreaElement
   const [text, setText] = createSignal(initial)
-  const [lsblkText, setLsblkText] = createSignal("")
+  const [lsblkText, setLsblkText] = createSignal(initialLsblk)
   const [theme, setTheme] = createSignal<Theme>(defaultTheme())
   const [hover, setHover] = createSignal<Hover | null>(null)
+  const [activeUuid, setActiveUuid] = createSignal<string | null>(null)
   const parsed = createMemo(() => parseFstab(text()))
   const lsblk = createMemo(() => parseLsblk(lsblkText()))
   const diagnostics = createMemo(() => [
@@ -168,13 +216,28 @@ function App() {
   const status = createMemo(() =>
     errors() || warnings() ? `${errors()} error, ${warnings()} warn` : "ok"
   )
-  const showHover = (value: string) => (event: MouseEvent) =>
+  const lsblkUuids = createMemo(() =>
+    new Set(lsblk().devices.map((device) => device.uuid).filter(Boolean))
+  )
+  const showHover = (value: string, uuid?: string) => (event: MouseEvent) => {
     setHover({ x: event.clientX + 10, y: event.clientY + 10, text: value })
+    setActiveUuid(uuid ?? null)
+  }
+  const hideHover = () => {
+    setHover(null)
+    setActiveUuid(null)
+  }
   const focusEditor = (event: MouseEvent) => {
     event.preventDefault()
     const offset = textOffsetAt(textarea, event, text())
     textarea.focus()
     textarea.setSelectionRange(offset, offset)
+  }
+  const focusLsblk = (event: MouseEvent) => {
+    event.preventDefault()
+    const offset = textOffsetAt(lsblkTextarea, event, lsblkText())
+    lsblkTextarea.focus()
+    lsblkTextarea.setSelectionRange(offset, offset)
   }
 
   return (
@@ -203,7 +266,7 @@ function App() {
           class="highlight"
           aria-hidden="true"
           onMouseDown={focusEditor}
-          onMouseLeave={() => setHover(null)}
+          onMouseLeave={hideHover}
           onScroll={(event) => {
             textarea.scrollTop = event.currentTarget.scrollTop
             textarea.scrollLeft = event.currentTarget.scrollLeft
@@ -212,7 +275,7 @@ function App() {
           <For each={parsed().lines}>{(line) => (
             <div class={lineClass(line, diagnostics())}>
               <Show when={line.kind === "entry"} fallback={<span class={line.kind}>{line.raw || " "}</span>}>
-                {renderFields(line, showHover)}
+                {renderFields(line, showHover, activeUuid())}
               </Show>
             </div>
           )}</For>
@@ -242,13 +305,37 @@ function App() {
 
       <section class="lsblk">
         <label for="lsblk">lsblk -f</label>
-        <textarea
-          id="lsblk"
-          aria-label="lsblk -f"
-          spellcheck={false}
-          value={lsblkText()}
-          onInput={(event) => setLsblkText(event.currentTarget.value)}
-        />
+        <div class="lsblk-editor">
+          <pre
+            ref={lsblkMirror}
+            class="lsblk-view"
+            aria-hidden="true"
+            onMouseDown={focusLsblk}
+            onMouseLeave={hideHover}
+            onScroll={(event) => {
+              lsblkTextarea.scrollTop = event.currentTarget.scrollTop
+              lsblkTextarea.scrollLeft = event.currentTarget.scrollLeft
+            }}
+          ><code>
+            <For each={lsblkText().split("\n")}>{(line) => (
+              <div class="line">
+                {renderLsblkLine(line, lsblkUuids(), activeUuid(), showHover)}
+              </div>
+            )}</For>
+          </code></pre>
+          <textarea
+            ref={lsblkTextarea}
+            id="lsblk"
+            aria-label="lsblk -f"
+            spellcheck={false}
+            value={lsblkText()}
+            onInput={(event) => setLsblkText(event.currentTarget.value)}
+            onScroll={(event) => {
+              lsblkMirror.scrollTop = event.currentTarget.scrollTop
+              lsblkMirror.scrollLeft = event.currentTarget.scrollLeft
+            }}
+          />
+        </div>
       </section>
 
       <Show when={diagnostics().length}>
