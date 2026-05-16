@@ -1,4 +1,10 @@
-# Vite + Deno + Solid + TypeScript
+# Fstab Visualizer
+
+![](./thumbnail.png)
+
+because I'm eternally confused with `/etc/fstab`
+
+URL: <https://scarf005.github.io/fstab-visualizer/>
 
 ## Running
 
@@ -6,7 +12,7 @@ You need to have Deno v2.0.0 or later installed to run this repo.
 
 Start a dev server:
 
-```
+```sh
 $ deno task dev
 ```
 
@@ -14,11 +20,6 @@ $ deno task dev
 
 Build production assets:
 
-```
+```sh
 $ deno task build
 ```
-
-GitHub Pages deploys from `.github/workflows/deploy-pages.yml` on pushes to
-`main`.
-
-Production URL: <https://scarf005.github.io/fstab-visualizer/>
