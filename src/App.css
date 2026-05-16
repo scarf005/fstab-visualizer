@@ -136,6 +136,11 @@ strong {
   z-index: 3;
 }
 
+.editor textarea::selection,
+.lsblk textarea::selection {
+  background: color-mix(in srgb, var(--file) 28%, transparent);
+}
+
 .line {
   min-height: 20px;
 }

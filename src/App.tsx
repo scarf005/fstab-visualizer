@@ -58,6 +58,12 @@ type LsblkRow = {
   fstypeEnd: number
 }
 
+type SelectionDrag = {
+  textarea: HTMLTextAreaElement
+  text: () => string
+  anchor: number
+}
+
 const initial = `# /etc/fstab
 UUID=8f3b1d0c-0c7d-4b0e-9a2a-1d64bdfd6f01 /     ext4  defaults,noatime                0 1
 UUID=fb2d2f54-b8c1-4f2a-baba-d8a4bb3a4fd0 /home ext4  defaults                        0 2
@@ -551,6 +557,7 @@ function App() {
   let textarea!: HTMLTextAreaElement
   let lsblkMirror!: HTMLPreElement
   let lsblkTextarea!: HTMLTextAreaElement
+  let selectionDrag: SelectionDrag | null = null
   const [text, setText] = createSignal(initial)
   const [lsblkText, setLsblkText] = createSignal(initialLsblk)
   const [theme, setTheme] = createSignal<Theme>(defaultTheme())
@@ -640,24 +647,48 @@ function App() {
     if (target instanceof Element && target.closest("[data-hover]")) return
     hideHover()
   }
-  const focusEditor = (event: MouseEvent) => {
+  const setSelection = (
+    target: HTMLTextAreaElement,
+    anchor: number,
+    offset: number,
+  ) =>
+    target.setSelectionRange(
+      Math.min(anchor, offset),
+      Math.max(anchor, offset),
+    )
+  const dragSelection = (event: MouseEvent) => {
+    if (!selectionDrag) return
+    event.preventDefault()
+    setSelection(
+      selectionDrag.textarea,
+      selectionDrag.anchor,
+      textOffsetAt(selectionDrag.textarea, event, selectionDrag.text()),
+    )
+  }
+  const stopSelectionDrag = () => {
+    globalThis.removeEventListener("mousemove", dragSelection)
+    selectionDrag = null
+  }
+  const startSelectionDrag = (
+    target: HTMLTextAreaElement,
+    value: () => string,
+    event: MouseEvent,
+  ) => {
     event.preventDefault()
     const offset = tokenOffset(
       event,
-      () => textOffsetAt(textarea, event, text()),
+      () => textOffsetAt(target, event, value()),
     )
-    textarea.focus()
-    textarea.setSelectionRange(offset, offset)
+    target.focus()
+    target.setSelectionRange(offset, offset)
+    selectionDrag = { textarea: target, text: value, anchor: offset }
+    globalThis.addEventListener("mousemove", dragSelection)
+    globalThis.addEventListener("mouseup", stopSelectionDrag, { once: true })
   }
-  const focusLsblk = (event: MouseEvent) => {
-    event.preventDefault()
-    const offset = tokenOffset(
-      event,
-      () => textOffsetAt(lsblkTextarea, event, lsblkText()),
-    )
-    lsblkTextarea.focus()
-    lsblkTextarea.setSelectionRange(offset, offset)
-  }
+  const focusEditor = (event: MouseEvent) =>
+    startSelectionDrag(textarea, text, event)
+  const focusLsblk = (event: MouseEvent) =>
+    startSelectionDrag(lsblkTextarea, lsblkText, event)
 
   return (
     <main data-theme={theme()}>
