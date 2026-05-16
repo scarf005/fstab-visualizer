@@ -5,6 +5,7 @@
   "tasks": {
     "dev": "deno run -A --node-modules-dir npm:vite",
     "build": "deno run -A --node-modules-dir npm:vite build",
+    "og:screenshot": "deno run -A --node-modules-dir scripts/capture-og.ts",
     "test": "deno test",
     "preview": "deno run -A --node-modules-dir npm:vite preview",
     "serve": "deno run --allow-net --allow-read jsr:@std/http@1/file-server dist/"
