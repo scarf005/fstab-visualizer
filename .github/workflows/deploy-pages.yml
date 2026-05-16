@@ -21,11 +21,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2
         with: { deno-version: v2.x }
+      - id: pages
+        uses: actions/configure-pages@v5
       - run: deno task build
+        env: { VITE_SITE_URL: "${{ steps.pages.outputs.base_url }}/" }
       - run: deno run -A npm:playwright@^1.56.1 install --with-deps chromium
       - run: deno task preview --host 127.0.0.1 > /tmp/fstab-preview.log 2>&1 &
       - run: deno task og:screenshot http://127.0.0.1:4173/ dist/thumbnail.webp
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
 
