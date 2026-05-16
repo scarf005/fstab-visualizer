@@ -161,50 +161,84 @@ Deno.test("decodes fstab octal escapes", () => {
 })
 
 Deno.test("explains source", () => {
-  assertEquals(explainField(field("spec", "UUID=abc")), "UUID abc")
+  assertEquals(explainField(field("spec", "UUID=abc")), "block device UUID abc")
   assertEquals(
     explainField(field("spec", "LABEL=My\\040Disk")),
-    "label My Disk",
+    "block device label My Disk",
   )
-  assertEquals(explainField(field("spec", "server:/export")), "remote source")
+  assertEquals(
+    explainField(field("spec", "server:/export")),
+    "remote source server:/export",
+  )
 })
 
 Deno.test("explains mount point", () => {
   assertEquals(
     explainField(field("file", "/mnt/My\\040Disk")),
-    "mount /mnt/My Disk",
+    "mount point /mnt/My Disk; filesystem appears here",
   )
 })
 
 Deno.test("explains fs type", () => {
-  assertEquals(explainField(field("vfstype", "ext4")), "ext4")
-  assertEquals(explainField(field("vfstype", "weirdfs")), "type weirdfs")
+  assertEquals(explainField(field("vfstype", "ext4")), "ext4: ext4")
+  assertEquals(
+    explainField(field("vfstype", "weirdfs")),
+    "filesystem type weirdfs",
+  )
 })
 
 Deno.test("explains options", () => {
   assertEquals(
     explainField(field("mntops", "defaults,noatime,uid=1000,x-unknown")),
-    "defaults: rw,suid,dev,exec,auto,nouser,async; noatime: skip access time; uid=1000: user id; x-unknown",
+    "defaults: rw,suid,dev,exec,auto,nouser,async; noatime: skip access time updates; uid=1000: owner user id 1000; x-unknown: mount option",
   )
 })
 
 Deno.test("explains option at column", () => {
   const options = field("mntops", "rw,nosuid,nodev,x-systemd.automount")
   assertEquals(explainFieldAt(options, 0), "rw: read-write")
-  assertEquals(explainFieldAt(options, 3), "nosuid: block suid/sgid")
+  assertEquals(explainFieldAt(options, 3), "nosuid: block suid/sgid bits")
   assertEquals(explainFieldAt(options, 10), "nodev: block device files")
   assertEquals(
     explainFieldAt(options, 16),
-    "x-systemd.automount: systemd automount",
+    "x-systemd.automount: systemd automount on access",
+  )
+})
+
+Deno.test("explains value options", () => {
+  const options = field("mntops", "rw,pri=10,uid=1000,umask=022")
+  assertEquals(
+    explainFieldAt(options, 3),
+    "pri=10: swap priority 10; higher used first",
+  )
+  assertEquals(explainFieldAt(options, 10), "uid=1000: owner user id 1000")
+  assertEquals(explainFieldAt(options, 19), "umask=022: permission mask 022")
+})
+
+Deno.test("explains boot failure option", () => {
+  assertEquals(
+    explainFieldAt(field("mntops", "defaults,nofail"), 9),
+    "nofail: boot continues if this mount fails or device is missing",
+  )
+})
+
+Deno.test("explains unknown options generically", () => {
+  assertEquals(explainFieldAt(field("mntops", "foo"), 0), "foo: mount option")
+  assertEquals(
+    explainFieldAt(field("mntops", "foo=bar"), 0),
+    "foo=bar: mount option foo=bar",
   )
 })
 
 Deno.test("explains dump and fsck", () => {
-  assertEquals(explainField(field("freq", "0")), "no dump")
-  assertEquals(explainField(field("freq", "1")), "dump")
-  assertEquals(explainField(field("passno", "0")), "no fsck")
-  assertEquals(explainField(field("passno", "1")), "fsck first")
-  assertEquals(explainField(field("passno", "2")), "fsck later")
+  assertEquals(explainField(field("freq", "0")), "dump 0: backup dump disabled")
+  assertEquals(explainField(field("freq", "1")), "dump 1: backup dump enabled")
+  assertEquals(explainField(field("passno", "0")), "fsck 0: skip boot check")
+  assertEquals(
+    explainField(field("passno", "1")),
+    "fsck 1: check first, usually root",
+  )
+  assertEquals(explainField(field("passno", "2")), "fsck 2: check after root")
 })
 
 Deno.test("labels fields", () => {

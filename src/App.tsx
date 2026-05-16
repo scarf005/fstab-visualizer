@@ -1,7 +1,6 @@
 import "./App.css"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import {
-  explainField,
   explainFieldAt,
   fieldLabel,
   parseFstab,
@@ -85,11 +84,16 @@ const fieldAt = (line: ParsedLine | undefined, column: number) =>
 const diagnosticText = (item: Diagnostic) =>
   item.line ? `L${item.line}:${item.column} ${item.message}` : item.message
 
+const defaultTheme = (): Theme =>
+  globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "black"
+    : "white"
+
 function App() {
   let mirror!: HTMLPreElement
   const [text, setText] = createSignal(initial)
   const [lsblkText, setLsblkText] = createSignal("")
-  const [theme, setTheme] = createSignal<Theme>("black")
+  const [theme, setTheme] = createSignal<Theme>(defaultTheme())
   const [hover, setHover] = createSignal<Hover | null>(null)
   const parsed = createMemo(() => parseFstab(text()))
   const lsblk = createMemo(() => parseLsblk(lsblkText()))

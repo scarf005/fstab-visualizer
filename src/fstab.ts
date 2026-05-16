@@ -97,36 +97,101 @@ const typeHelp: Record<string, string> = {
 }
 
 const optionHelp: Record<string, string> = {
+  _netdev: "network device; mount after network is up",
+  acl: "POSIX ACL enabled",
   async: "async I/O",
   atime: "update access time",
-  auto: "mount with -a",
-  bind: "bind mount",
+  auto: "mount with mount -a / boot",
+  autodefrag: "Btrfs automatic defrag",
+  barrier: "write barriers enabled",
+  bg: "retry NFS mount in background",
+  bind: "bind mount another path",
+  comment: "comment only; ignored by mount",
+  compress: "Btrfs compression",
+  compress_force: "Btrfs compression, even for incompressible files",
+  credentials: "CIFS credentials file",
+  dax: "direct access to persistent memory",
   defaults: "rw,suid,dev,exec,auto,nouser,async",
+  defcontext: "SELinux default context",
+  degraded: "Btrfs allow missing devices",
   dev: "device files enabled",
-  discard: "TRIM",
+  diratime: "update directory access time",
+  discard: "TRIM/discard unused blocks",
+  dmask: "directory permission mask",
+  domain: "CIFS/SMB domain",
   exec: "allow executables",
+  fmask: "file permission mask",
+  fscontext: "SELinux fs context",
   gid: "group id",
+  hard: "NFS retry forever",
+  iocharset: "character set",
+  lazytime: "defer timestamp writes",
+  local_lock: "NFS local locking mode",
+  loop: "mount through loop device",
+  mand: "mandatory locks",
   mode: "permission mode",
-  noatime: "skip access time",
-  noauto: "skip mount -a",
+  noacl: "POSIX ACL disabled",
+  noatime: "skip access time updates",
+  noauto: "do not mount with mount -a / boot",
+  nobarrier: "write barriers disabled",
+  nodatacow: "Btrfs disable copy-on-write data",
+  nodatasum: "Btrfs disable data checksums",
   nodev: "block device files",
+  nodiratime: "skip directory access time updates",
   noexec: "block executables",
-  nosuid: "block suid/sgid",
-  nouser: "root only",
-  relatime: "relative access time",
-  remount: "remount",
-  subvol: "Btrfs subvolume",
+  nofail: "boot continues if this mount fails or device is missing",
+  noiversion: "do not update inode version",
+  nosuid: "block suid/sgid bits",
+  nouser: "only root may mount",
+  nouser_xattr: "user extended attributes disabled",
+  password: "CIFS/SMB password",
+  pri: "swap priority; higher used first",
+  relatime: "update access time only when older than mtime/ctime",
+  remount: "remount existing mount",
+  retrans: "NFS retry count",
   ro: "read-only",
+  rootcontext: "SELinux root context",
+  rsize: "read size",
   rw: "read-write",
-  strictatime: "strict access time",
-  suid: "suid/sgid enabled",
+  sec: "security mode",
+  shortname: "FAT short filename mode",
+  showexec: "FAT mark executables by extension",
+  size: "size limit",
+  soft: "NFS fail after retries",
+  space_cache: "Btrfs free-space cache",
+  ssd: "Btrfs SSD optimizations",
+  strictatime: "always update access time",
+  subvol: "Btrfs subvolume",
+  subvolid: "Btrfs subvolume id",
+  suid: "suid/sgid bits enabled",
   sw: "swap defaults",
   sync: "sync I/O",
+  tcp: "use TCP",
+  timeo: "NFS timeout",
   uid: "user id",
+  udp: "use UDP",
   umask: "permission mask",
-  user: "user mount allowed",
-  users: "any user unmount",
-  x_systemd_automount: "systemd automount",
+  user: "non-root user may mount",
+  user_xattr: "user extended attributes enabled",
+  username: "CIFS/SMB username",
+  users: "any user may mount/unmount",
+  utf8: "UTF-8 filenames",
+  vers: "protocol/filesystem version",
+  wsize: "write size",
+  x_gvfs_hide: "hide from GNOME UI",
+  x_gvfs_name: "GNOME display name",
+  x_systemd_after: "systemd order after unit",
+  x_systemd_automount: "systemd automount on access",
+  x_systemd_before: "systemd order before unit",
+  x_systemd_device_timeout: "systemd device wait timeout",
+  x_systemd_growfs: "systemd grow filesystem",
+  x_systemd_idle_timeout: "systemd automount idle timeout",
+  x_systemd_makefs: "systemd create filesystem",
+  x_systemd_mount_timeout: "systemd mount timeout",
+  x_systemd_requires: "systemd requires unit",
+  x_systemd_requires_mounts_for: "systemd requires path mounted",
+  x_systemd_rw_only: "systemd fail if read-write unavailable",
+  x_systemd_wanted_by: "systemd wanted-by target",
 }
 
 const spaces = regexp(/[ \t]+/g, "space")
@@ -348,33 +413,84 @@ export const decodeFstabEscapes = (value: string): string =>
 
 const sourceHint = (value: string): string =>
   value.startsWith("UUID=")
-    ? `UUID ${value.slice(5)}`
+    ? `block device UUID ${value.slice(5)}`
     : value.startsWith("LABEL=")
-    ? `label ${decodeFstabEscapes(value.slice(6))}`
+    ? `block device label ${decodeFstabEscapes(value.slice(6))}`
     : value.includes(":")
-    ? "remote source"
+    ? `remote source ${value}`
     : value.startsWith("/")
-    ? `device/path ${decodeFstabEscapes(value)}`
+    ? `block device/path ${decodeFstabEscapes(value)}`
     : decodeFstabEscapes(value)
 
+const optionValueHelp = (key: string, value: string): string | undefined =>
+  key === "pri"
+    ? `swap priority ${value}; higher used first`
+    : key === "uid"
+    ? `owner user id ${value}`
+    : key === "gid"
+    ? `owner group id ${value}`
+    : key === "umask"
+    ? `permission mask ${value}`
+    : key === "mode"
+    ? `permission mode ${value}`
+    : key === "dmask"
+    ? `directory permission mask ${value}`
+    : key === "fmask"
+    ? `file permission mask ${value}`
+    : key === "subvol"
+    ? `Btrfs subvolume ${value}`
+    : key === "subvolid"
+    ? `Btrfs subvolume id ${value}`
+    : key === "size"
+    ? `size limit ${value}`
+    : key === "x_systemd_device_timeout"
+    ? `systemd waits ${value} for device`
+    : key === "x_systemd_idle_timeout"
+    ? `systemd unmounts automount after ${value} idle`
+    : key === "x_systemd_mount_timeout"
+    ? `systemd waits ${value} for mount`
+    : optionHelp[key]
+    ? `${optionHelp[key]}: ${value}`
+    : undefined
+
 const explainOption = (option: string): string => {
-  const key = optionKey(option)
-  return optionHelp[key] ? `${option}: ${optionHelp[key]}` : option
+  const [rawKey, value] = option.split(/=(.*)/s)
+  const key = optionKey(rawKey)
+  const valueHelp = value === undefined
+    ? undefined
+    : optionValueHelp(key, value)
+  return valueHelp
+    ? `${option}: ${valueHelp}`
+    : optionHelp[key]
+    ? `${option}: ${optionHelp[key]}`
+    : value === undefined
+    ? `${option}: mount option`
+    : `${option}: mount option ${rawKey}=${value}`
 }
 
 export const explainField = (field: Field): string => {
   if (field.name === "spec") return sourceHint(field.text)
-  if (field.name === "file") return `mount ${decodeFstabEscapes(field.text)}`
-  if (field.name === "vfstype") {
-    return typeHelp[field.text] ?? `type ${field.text}`
+  if (field.name === "file") {
+    return `mount point ${
+      decodeFstabEscapes(field.text)
+    }; filesystem appears here`
   }
-  if (field.name === "freq") return field.text === "0" ? "no dump" : "dump"
+  if (field.name === "vfstype") {
+    return typeHelp[field.text]
+      ? `${field.text}: ${typeHelp[field.text]}`
+      : `filesystem type ${field.text}`
+  }
+  if (field.name === "freq") {
+    return field.text === "0"
+      ? "dump 0: backup dump disabled"
+      : "dump 1: backup dump enabled"
+  }
   if (field.name === "passno") {
     return field.text === "0"
-      ? "no fsck"
+      ? "fsck 0: skip boot check"
       : field.text === "1"
-      ? "fsck first"
-      : "fsck later"
+      ? "fsck 1: check first, usually root"
+      : "fsck 2: check after root"
   }
 
   const parts = field.text.split(",").filter(Boolean)

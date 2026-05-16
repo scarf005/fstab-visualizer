@@ -17,8 +17,13 @@ main {
   --warn: #c58b00;
   --ok: #137333;
   background: var(--bg);
+  box-sizing: border-box;
   color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
   padding: 16px;
 }
 
@@ -42,6 +47,7 @@ header {
   align-items: center;
   display: flex;
   gap: 12px;
+  flex: 0 0 auto;
   margin-bottom: 12px;
 }
 
@@ -76,7 +82,8 @@ strong {
   background: var(--panel);
   border: 1px solid var(--border);
   box-sizing: border-box;
-  height: 56vh;
+  flex: 1 1 0;
+  min-height: 220px;
   position: relative;
 }
 
@@ -168,7 +175,11 @@ strong {
 }
 
 .lsblk {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
   margin-top: 12px;
+  min-height: 160px;
 }
 
 .lsblk label {
@@ -184,7 +195,8 @@ strong {
   color: var(--fg);
   display: block;
   font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
-  height: 16vh;
+  flex: 1 1 auto;
+  min-height: 0;
   outline: 0;
   padding: 12px;
   resize: vertical;
@@ -197,6 +209,9 @@ strong {
 ul {
   font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
   list-style: none;
+  flex: 0 1 auto;
   margin: 12px 0 0;
+  max-height: 18vh;
+  overflow: auto;
   padding: 0;
 }
