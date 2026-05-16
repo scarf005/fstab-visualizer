@@ -116,8 +116,9 @@ strong {
 .highlight {
   color: var(--fg);
   height: 100%;
-  pointer-events: none;
-  z-index: 1;
+  pointer-events: auto;
+  user-select: none;
+  z-index: 3;
 }
 
 .line {

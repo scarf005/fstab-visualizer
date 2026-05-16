@@ -34,7 +34,45 @@ const renderTail = (tail: string) => {
   return match ? [match[1], <span class="comment">{match[2]}</span>] : [tail]
 }
 
-const renderFields = (line: ParsedLine) => {
+const renderOptionFields = (
+  field: Field,
+  showHover: (text: string) => (event: MouseEvent) => void,
+) => {
+  let cursor = 0
+  return field.text.split(",").flatMap((option, index) => {
+    const start = cursor
+    cursor += option.length + 1
+    const text = fieldTitle(field, field.start + start)
+    return [
+      index ? "," : "",
+      <span class="mntops" onMouseMove={showHover(text)}>
+        {option}
+      </span>,
+    ]
+  })
+}
+
+const renderField = (
+  field: Field,
+  extra: boolean,
+  showHover: (text: string) => (event: MouseEvent) => void,
+) => {
+  if (field.name === "mntops" && !extra) {
+    return renderOptionFields(field, showHover)
+  }
+
+  const text = extra ? `extra: ${field.text}` : fieldTitle(field)
+  return (
+    <span class={tokenClass(field, extra)} onMouseMove={showHover(text)}>
+      {field.text}
+    </span>
+  )
+}
+
+const renderFields = (
+  line: ParsedLine,
+  showHover: (text: string) => (event: MouseEvent) => void,
+) => {
   const tokens = [
     ...line.fields.map((field) => ({ field, extra: false })),
     ...line.extra.map((field) => ({ field, extra: true })),
@@ -43,15 +81,7 @@ const renderFields = (line: ParsedLine) => {
   return tokens.flatMap(({ field, extra }) => {
     const before = line.raw.slice(cursor, field.start)
     cursor = field.end
-    return [
-      before,
-      <span
-        class={tokenClass(field, extra)}
-        title={extra ? `extra: ${field.text}` : fieldTitle(field)}
-      >
-        {field.text}
-      </span>,
-    ]
+    return [before, renderField(field, extra, showHover)]
   }).concat(renderTail(line.raw.slice(cursor)))
 }
 
@@ -74,12 +104,39 @@ const charWidth = (textarea: HTMLTextAreaElement) => {
   return context.measureText("M").width
 }
 
-const fieldAt = (line: ParsedLine | undefined, column: number) =>
-  line?.kind === "entry"
-    ? [...line.fields, ...line.extra].find((field) =>
-      column >= field.start && column < field.end
-    )
-    : undefined
+const textOffsetAt = (
+  textarea: HTMLTextAreaElement,
+  event: MouseEvent,
+  text: string,
+): number => {
+  const style = getComputedStyle(textarea)
+  const rect = textarea.getBoundingClientRect()
+  const left = parseFloat(style.paddingLeft)
+  const top = parseFloat(style.paddingTop)
+  const lineHeight = parseFloat(style.lineHeight)
+  const lineIndex = Math.max(
+    0,
+    Math.floor(
+      (event.clientY - rect.top - top + textarea.scrollTop) / lineHeight,
+    ),
+  )
+  const column = Math.max(
+    0,
+    Math.floor(
+      (event.clientX - rect.left - left + textarea.scrollLeft) /
+        charWidth(textarea),
+    ),
+  )
+  const lines = text.split("\n")
+  const before = lines.slice(0, lineIndex).reduce(
+    (sum, line) => sum + line.length + 1,
+    0,
+  )
+  return Math.min(
+    text.length,
+    before + Math.min(column, lines[lineIndex]?.length ?? 0),
+  )
+}
 
 const diagnosticText = (item: Diagnostic) =>
   item.line ? `L${item.line}:${item.column} ${item.message}` : item.message
@@ -91,6 +148,7 @@ const defaultTheme = (): Theme =>
 
 function App() {
   let mirror!: HTMLPreElement
+  let textarea!: HTMLTextAreaElement
   const [text, setText] = createSignal(initial)
   const [lsblkText, setLsblkText] = createSignal("")
   const [theme, setTheme] = createSignal<Theme>(defaultTheme())
@@ -110,32 +168,13 @@ function App() {
   const status = createMemo(() =>
     errors() || warnings() ? `${errors()} error, ${warnings()} warn` : "ok"
   )
-  const updateHover = (
-    event: MouseEvent & { currentTarget: HTMLTextAreaElement },
-  ) => {
-    const textarea = event.currentTarget
-    const style = getComputedStyle(textarea)
-    const rect = textarea.getBoundingClientRect()
-    const left = parseFloat(style.paddingLeft)
-    const top = parseFloat(style.paddingTop)
-    const lineHeight = parseFloat(style.lineHeight)
-    const line = Math.floor(
-      (event.clientY - rect.top - top + textarea.scrollTop) / lineHeight,
-    )
-    const column = Math.floor(
-      (event.clientX - rect.left - left + textarea.scrollLeft) /
-        charWidth(textarea),
-    )
-    const field = fieldAt(parsed().lines[line], column)
-    setHover(
-      field
-        ? {
-          x: event.clientX + 10,
-          y: event.clientY + 10,
-          text: fieldTitle(field, column),
-        }
-        : null,
-    )
+  const showHover = (value: string) => (event: MouseEvent) =>
+    setHover({ x: event.clientX + 10, y: event.clientY + 10, text: value })
+  const focusEditor = (event: MouseEvent) => {
+    event.preventDefault()
+    const offset = textOffsetAt(textarea, event, text())
+    textarea.focus()
+    textarea.setSelectionRange(offset, offset)
   }
 
   return (
@@ -159,22 +198,31 @@ function App() {
       </header>
 
       <section class="editor">
-        <pre ref={mirror} class="highlight" aria-hidden="true"><code>
+        <pre
+          ref={mirror}
+          class="highlight"
+          aria-hidden="true"
+          onMouseDown={focusEditor}
+          onMouseLeave={() => setHover(null)}
+          onScroll={(event) => {
+            textarea.scrollTop = event.currentTarget.scrollTop
+            textarea.scrollLeft = event.currentTarget.scrollLeft
+          }}
+        ><code>
           <For each={parsed().lines}>{(line) => (
             <div class={lineClass(line, diagnostics())}>
               <Show when={line.kind === "entry"} fallback={<span class={line.kind}>{line.raw || " "}</span>}>
-                {renderFields(line)}
+                {renderFields(line, showHover)}
               </Show>
             </div>
           )}</For>
         </code></pre>
         <textarea
+          ref={textarea}
           aria-label="fstab"
           spellcheck={false}
           value={text()}
           onInput={(event) => setText(event.currentTarget.value)}
-          onMouseMove={updateHover}
-          onMouseLeave={() => setHover(null)}
           onScroll={(event) => {
             mirror.scrollTop = event.currentTarget.scrollTop
             mirror.scrollLeft = event.currentTarget.scrollLeft
