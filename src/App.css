@@ -78,6 +78,19 @@ strong {
   font-weight: 600;
 }
 
+.repo-link {
+  align-items: center;
+  color: var(--fg);
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.repo-link svg {
+  display: block;
+  height: 20px;
+  width: 20px;
+}
+
 .editor {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -236,8 +249,29 @@ strong {
   z-index: 3;
 }
 
+.lsblk-token {
+  color: var(--fg);
+}
+
+.lsblk-name {
+  color: var(--file);
+}
+
+.lsblk-fstype {
+  color: var(--type);
+}
+
+.lsblk-label {
+  color: var(--opts);
+}
+
 .lsblk-uuid {
   color: var(--spec);
+}
+
+.lsblk-mountpoint,
+.lsblk-mountpoints {
+  color: var(--num);
 }
 
 ul {
