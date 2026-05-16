@@ -98,7 +98,7 @@ Deno.test("reports missing source", () => {
 Deno.test("reports filesystem mismatch", () => {
   const fstab = parseFstab("UUID=1111-2222 /boot ext4 defaults 0 2")
   assertEquals(messages(verifyFstabWithLsblk(fstab, parseLsblk(table))), [
-    "lsblk fs type: vfat",
+    "fstab ext4 ≠ lsblk vfat; set fstab type to vfat or change the device filesystem",
   ])
 })
 
@@ -107,7 +107,7 @@ Deno.test("warns mountpoint mismatch", () => {
     "UUID=bbbbbbbb-1111-2222-3333-cccccccccccc /wrong ext4 defaults 0 2",
   )
   assertEquals(messages(verifyFstabWithLsblk(fstab, parseLsblk(table))), [
-    "lsblk mount: /mnt/data",
+    "fstab mount /wrong not in lsblk (/mnt/data); set fstab mountpoint to an lsblk path or mount the device there",
   ])
 })
 

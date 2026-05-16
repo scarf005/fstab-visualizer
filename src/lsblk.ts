@@ -212,7 +212,7 @@ export const verifyFstabWithLsblk = (
           line.number,
           type,
           "error",
-          `lsblk fs type: ${device.fstype}`,
+          `fstab ${type.text} ≠ lsblk ${device.fstype}; set fstab type to ${device.fstype} or change the device filesystem`,
         ),
       )
     }
@@ -227,7 +227,9 @@ export const verifyFstabWithLsblk = (
           line.number,
           mount,
           "warn",
-          `lsblk mount: ${mountpoints.join(",")}`,
+          `fstab mount ${mount.text} not in lsblk (${
+            mountpoints.join(",")
+          }); set fstab mountpoint to an lsblk path or mount the device there`,
         ),
       )
     }

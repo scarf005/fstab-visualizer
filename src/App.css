@@ -152,6 +152,12 @@ strong {
   background: color-mix(in srgb, var(--file) 28%, transparent);
 }
 
+.linked-error {
+  background: color-mix(in srgb, var(--bad) 24%, transparent);
+  outline: 1px solid var(--bad);
+  outline-offset: 1px;
+}
+
 .file {
   color: var(--file);
 }
@@ -192,6 +198,21 @@ strong {
   pointer-events: none;
   position: fixed;
   z-index: 20;
+}
+
+.error-links {
+  height: 100vh;
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  width: 100vw;
+  z-index: 19;
+}
+
+.error-links line {
+  stroke: var(--bad);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.5;
 }
 
 .lsblk {
