@@ -5,6 +5,7 @@
   "tasks": {
     "dev": "deno run -A --node-modules-dir npm:vite",
     "build": "deno run -A --node-modules-dir npm:vite build",
+    "test": "deno test",
     "preview": "deno run -A --node-modules-dir npm:vite preview",
     "serve": "deno run --allow-net --allow-read jsr:@std/http@1/file-server dist/"
   },
@@ -15,6 +16,7 @@
   },
   "imports": {
     "@deno/vite-plugin": "npm:@deno/vite-plugin@^1.0.5",
+    "@nrsk/sigma": "npm:@nrsk/sigma@^3.8.0",
     "solid-js": "npm:solid-js@^1.9.10",
     "vite": "npm:vite@^7.2.7",
     "vite-plugin-solid": "npm:vite-plugin-solid@^2.11.10"
