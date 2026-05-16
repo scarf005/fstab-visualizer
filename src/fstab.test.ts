@@ -99,6 +99,20 @@ Deno.test("reports extra fields", () => {
   assertEquals(messages(parsed.diagnostics), ["extra field: extra"])
 })
 
+Deno.test("reports invalid fs type typo", () => {
+  const parsed = parseFstab("server:/export /mnt nfs4f defaults 0 0")
+  assertEquals(messages(parsed.diagnostics), [
+    "unknown fs type nfs4f; did you mean {nfs4}?",
+  ])
+})
+
+Deno.test("warns unknown fs type without close match", () => {
+  const parsed = parseFstab("/dev/sda1 / customfs defaults 0 0")
+  assertEquals(messages(parsed.diagnostics), [
+    "unknown fs type customfs; verify kernel or mount helper supports it",
+  ])
+})
+
 Deno.test("reports invalid dump", () => {
   const parsed = parseFstab("/dev/sda1 / ext4 defaults x 1")
   assertEquals(messages(parsed.diagnostics), ["dump must be 0 or 1"])

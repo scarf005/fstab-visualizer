@@ -227,6 +227,33 @@ const diagnostic = (
 
 const isInteger = (value: string) => /^\d+$/.test(value)
 
+const knownFsTypes = new Set(Object.keys(typeHelp))
+
+const editDistance = (left: string, right: string): number => {
+  const previous = [...right].map((_, index) => index + 1)
+  previous.unshift(0)
+  for (const [leftIndex, leftChar] of [...left].entries()) {
+    const current = [leftIndex + 1]
+    for (const [rightIndex, rightChar] of [...right].entries()) {
+      current.push(Math.min(
+        current[rightIndex] + 1,
+        previous[rightIndex + 1] + 1,
+        previous[rightIndex] + (leftChar === rightChar ? 0 : 1),
+      ))
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+  return previous.at(-1) ?? 0
+}
+
+const fsTypeSuggestion = (type: string): string | undefined => {
+  const nearest = [...knownFsTypes].map((known) => ({
+    known,
+    distance: editDistance(type.toLowerCase(), known.toLowerCase()),
+  })).sort((a, b) => a.distance - b.distance)[0]
+  return nearest && nearest.distance <= 2 ? nearest.known : undefined
+}
+
 const optionKey = (option: string) =>
   option.replace(/=.*/, "").replace(/[-.]/g, "_")
 
@@ -275,6 +302,18 @@ const validateFields = (
   }
   if (type === "") {
     diagnostics.push(diagnostic(line, at(2), "error", "empty fs type"))
+  } else if (!knownFsTypes.has(type)) {
+    const suggestion = fsTypeSuggestion(type)
+    diagnostics.push(
+      diagnostic(
+        line,
+        at(2),
+        suggestion ? "error" : "warn",
+        suggestion
+          ? `unknown fs type ${type}; did you mean {${suggestion}}?`
+          : `unknown fs type ${type}; verify kernel or mount helper supports it`,
+      ),
+    )
   }
   if (options === "") {
     diagnostics.push(diagnostic(line, at(3), "error", "empty options"))
