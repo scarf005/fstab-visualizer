@@ -3,6 +3,12 @@
 }
 
 main {
+  --mono:
+    "Sarasa Mono K Nerd Font",
+    ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
   --bg: #0b0b0b;
   --fg: #ddd;
   --panel: #111;
@@ -23,6 +29,7 @@ main {
   flex-direction: column;
   height: 100vh;
   min-height: 100vh;
+  font: 16px/1.45 var(--mono);
   overflow: hidden;
   padding: 16px;
 }
@@ -107,7 +114,7 @@ strong {
   background: transparent;
   border: 0;
   box-sizing: border-box;
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 16px/1.45 var(--mono);
   inset: 0;
   margin: 0;
   overflow: auto;
@@ -197,7 +204,7 @@ strong {
 .tip {
   background: var(--fg);
   color: var(--bg);
-  font: 12px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 16px/1.3 var(--mono);
   max-width: 420px;
   padding: 4px 6px;
   pointer-events: none;
@@ -230,7 +237,7 @@ strong {
 
 .lsblk label {
   display: block;
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 16px/1.45 var(--mono);
   margin-bottom: 4px;
 }
 
@@ -248,7 +255,7 @@ strong {
   background: transparent;
   border: 0;
   box-sizing: border-box;
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 16px/1.45 var(--mono);
   inset: 0;
   margin: 0;
   overflow: auto;
@@ -303,7 +310,7 @@ strong {
 }
 
 ul {
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 16px/1.45 var(--mono);
   list-style: none;
   flex: 0 1 auto;
   margin: 12px 0 0;
