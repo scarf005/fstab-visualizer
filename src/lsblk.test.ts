@@ -91,7 +91,7 @@ Deno.test("verifies device path source", () => {
 Deno.test("reports missing source", () => {
   const fstab = parseFstab("UUID=missing / ext4 defaults 0 1")
   assertEquals(messages(verifyFstabWithLsblk(fstab, parseLsblk(table))), [
-    "source not in lsblk",
+    "fstab UUID missing not found in lsblk; did you mean {UUID=1111-2222}?",
   ])
 })
 

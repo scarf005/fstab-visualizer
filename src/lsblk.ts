@@ -174,6 +174,43 @@ const sourceDevice = (
     ? devices.find((device) => deviceNames(device).includes(spec))
     : undefined
 
+const editDistance = (left: string, right: string): number => {
+  const previous = [...right].map((_, index) => index + 1)
+  previous.unshift(0)
+  for (const [leftIndex, leftChar] of [...left].entries()) {
+    const current = [leftIndex + 1]
+    for (const [rightIndex, rightChar] of [...right].entries()) {
+      current.push(Math.min(
+        current[rightIndex] + 1,
+        previous[rightIndex + 1] + 1,
+        previous[rightIndex] + (leftChar === rightChar ? 0 : 1),
+      ))
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+  return previous.at(-1) ?? 0
+}
+
+const nearestUuid = (
+  uuid: string,
+  devices: LsblkDevice[],
+): string | undefined =>
+  devices.filter((device) => device.uuid).map((device) => ({
+    uuid: device.uuid,
+    distance: editDistance(uuid.toLowerCase(), device.uuid.toLowerCase()),
+  })).sort((a, b) => a.distance - b.distance)[0]?.uuid
+
+const sourceError = (spec: Field, devices: LsblkDevice[]): string => {
+  if (spec.text.startsWith("UUID=")) {
+    const uuid = spec.text.slice(5)
+    const suggestion = nearestUuid(uuid, devices)
+    return suggestion
+      ? `fstab UUID ${uuid} not found in lsblk; did you mean {UUID=${suggestion}}?`
+      : `fstab UUID ${uuid} not found in lsblk; copy UUID from lsblk -f`
+  }
+  return `fstab source ${spec.text} not found in lsblk; use UUID=, LABEL=, or /dev/ from lsblk -f`
+}
+
 const canSkipSource = (spec: string, type: string): boolean =>
   spec === "none" || spec === "tmpfs" || spec.includes(":") ||
   pseudoTypes.has(type) ||
@@ -197,7 +234,12 @@ export const verifyFstabWithLsblk = (
 
     if (!device && !canSkipSource(spec.text, expectedType)) {
       diagnostics.push(
-        fstabDiagnostic(line.number, spec, "error", "source not in lsblk"),
+        fstabDiagnostic(
+          line.number,
+          spec,
+          "error",
+          sourceError(spec, lsblk.devices),
+        ),
       )
       return
     }

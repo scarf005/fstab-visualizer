@@ -41,7 +41,7 @@ type ErrorLink = {
   y2: number
 }
 
-type FsMismatch = {
+type LinkedIssue = {
   id: string
   fstabKey: string
   lsblkKey: string
@@ -56,6 +56,8 @@ type LsblkRow = {
   lineIndex: number
   fstypeStart: number
   fstypeEnd: number
+  uuidStart: number
+  uuidEnd: number
 }
 
 type SelectionDrag = {
@@ -316,14 +318,17 @@ const lsblkCell = (line: string, columns: LsblkColumn[], name: string) => {
 const lsblkRows = (text: string, columns: LsblkColumn[]): LsblkRow[] =>
   text.split("\n").slice(1).map((line, index) => {
     const fstype = lsblkCell(line, columns, "FSTYPE")
+    const uuid = lsblkCell(line, columns, "UUID")
     return {
       name: cleanDeviceName(lsblkCell(line, columns, "NAME").text),
       fstype: fstype.text,
       label: lsblkCell(line, columns, "LABEL").text,
-      uuid: lsblkCell(line, columns, "UUID").text,
+      uuid: uuid.text,
       lineIndex: index + 1,
       fstypeStart: fstype.start,
       fstypeEnd: fstype.end,
+      uuidStart: uuid.start,
+      uuidEnd: uuid.end,
     }
   }).filter((row) => row.name)
 
@@ -339,10 +344,33 @@ const sourceRow = (spec: string, rows: LsblkRow[]): LsblkRow | undefined =>
     ? rows.find((row) => `/dev/${row.name}` === spec || row.name === spec)
     : undefined
 
+const editDistance = (left: string, right: string): number => {
+  const previous = [...right].map((_, index) => index + 1)
+  previous.unshift(0)
+  for (const [leftIndex, leftChar] of [...left].entries()) {
+    const current = [leftIndex + 1]
+    for (const [rightIndex, rightChar] of [...right].entries()) {
+      current.push(Math.min(
+        current[rightIndex] + 1,
+        previous[rightIndex + 1] + 1,
+        previous[rightIndex] + (leftChar === rightChar ? 0 : 1),
+      ))
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+  return previous.at(-1) ?? 0
+}
+
+const nearestUuidRow = (uuid: string, rows: LsblkRow[]): LsblkRow | undefined =>
+  rows.filter((row) => row.uuid).map((row) => ({
+    row,
+    distance: editDistance(uuid.toLowerCase(), row.uuid.toLowerCase()),
+  })).sort((a, b) => a.distance - b.distance)[0]?.row
+
 const fsMismatches = (
   lines: ParsedLine[],
   rows: LsblkRow[],
-): FsMismatch[] =>
+): LinkedIssue[] =>
   lines.flatMap((line) => {
     if (line.kind !== "entry" || line.fields.length < 3) return []
     const spec = line.fields[0].text
@@ -359,6 +387,29 @@ const fsMismatches = (
       lsblkKey,
       message:
         `fstab ${fstype.text} ≠ lsblk ${row.fstype}; set fstab type to ${row.fstype} or change the device filesystem`,
+    }]
+  })
+
+const uuidMismatches = (
+  lines: ParsedLine[],
+  rows: LsblkRow[],
+): LinkedIssue[] =>
+  lines.flatMap((line) => {
+    if (line.kind !== "entry" || line.fields.length < 1) return []
+    const spec = line.fields[0]
+    if (!spec.text.startsWith("UUID=")) return []
+    const uuid = spec.text.slice(5)
+    if (rows.some((row) => row.uuid === uuid)) return []
+    const row = nearestUuidRow(uuid, rows)
+    if (!row) return []
+    const fstabKey = `fstab:${line.number}:${spec.start}:${spec.end}`
+    const lsblkKey = `lsblk:${row.lineIndex}:UUID:${row.uuidStart}`
+    return [{
+      id: `${fstabKey}:${lsblkKey}`,
+      fstabKey,
+      lsblkKey,
+      message:
+        `fstab UUID ${uuid} not found in lsblk; did you mean {UUID=${row.uuid}}?`,
     }]
   })
 
@@ -589,15 +640,18 @@ function App() {
   const lsblkOffsets = createMemo(() => lineOffsets(lsblkText()))
   const columns = createMemo(() => lsblkColumns(lsblkText()))
   const rows = createMemo(() => lsblkRows(lsblkText(), columns()))
-  const mismatches = createMemo(() => fsMismatches(parsed().lines, rows()))
+  const linkedIssues = createMemo(() => [
+    ...fsMismatches(parsed().lines, rows()),
+    ...uuidMismatches(parsed().lines, rows()),
+  ])
   const errorKeys = createMemo(() =>
-    new Set(mismatches().flatMap((item) => [item.fstabKey, item.lsblkKey]))
+    new Set(linkedIssues().flatMap((item) => [item.fstabKey, item.lsblkKey]))
   )
   const [links, setLinks] = createSignal<ErrorLink[]>([])
   const updateErrorLinks = () => {
     requestAnimationFrame(() => {
       setLinks(
-        mismatches().flatMap((item) => {
+        linkedIssues().flatMap((item) => {
           const from = document.querySelector<HTMLElement>(
             `[data-key="${item.fstabKey}"]`,
           )
@@ -620,7 +674,7 @@ function App() {
     })
   }
   createEffect(() => {
-    mismatches()
+    linkedIssues()
     text()
     lsblkText()
     updateErrorLinks()
