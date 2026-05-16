@@ -205,7 +205,7 @@ const sourceError = (spec: Field, devices: LsblkDevice[]): string => {
     const uuid = spec.text.slice(5)
     const suggestion = nearestUuid(uuid, devices)
     return suggestion
-      ? `fstab UUID ${uuid} not found in lsblk; did you mean {UUID=${suggestion}}?`
+      ? `fstab UUID ${uuid} not found in lsblk; did you mean UUID=${suggestion}?`
       : `fstab UUID ${uuid} not found in lsblk; copy UUID from lsblk -f`
   }
   return `fstab source ${spec.text} not found in lsblk; use UUID=, LABEL=, or /dev/ from lsblk -f`

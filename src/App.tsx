@@ -409,7 +409,7 @@ const uuidMismatches = (
       fstabKey,
       lsblkKey,
       message:
-        `fstab UUID ${uuid} not found in lsblk; did you mean {UUID=${row.uuid}}?`,
+        `fstab UUID ${uuid} not found in lsblk; did you mean UUID=${row.uuid}?`,
     }]
   })
 

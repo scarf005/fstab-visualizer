@@ -310,7 +310,7 @@ const validateFields = (
         at(2),
         suggestion ? "error" : "warn",
         suggestion
-          ? `unknown fs type ${type}; did you mean {${suggestion}}?`
+          ? `unknown fs type ${type}; did you mean ${suggestion}?`
           : `unknown fs type ${type}; verify kernel or mount helper supports it`,
       ),
     )

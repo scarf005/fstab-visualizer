@@ -102,7 +102,7 @@ Deno.test("reports extra fields", () => {
 Deno.test("reports invalid fs type typo", () => {
   const parsed = parseFstab("server:/export /mnt nfs4f defaults 0 0")
   assertEquals(messages(parsed.diagnostics), [
-    "unknown fs type nfs4f; did you mean {nfs4}?",
+    "unknown fs type nfs4f; did you mean nfs4?",
   ])
 })
 
