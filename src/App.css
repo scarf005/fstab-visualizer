@@ -191,7 +191,7 @@ strong {
   padding: 4px 6px;
   pointer-events: none;
   position: fixed;
-  z-index: 3;
+  z-index: 20;
 }
 
 .lsblk {

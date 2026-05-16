@@ -54,6 +54,7 @@ const fieldUuid = (field: Field): string | undefined =>
     : undefined
 
 const renderOptionFields = (
+  lineNumber: number,
   field: Field,
   showHover: (
     text: string,
@@ -67,7 +68,7 @@ const renderOptionFields = (
     const start = cursor
     cursor += option.length + 1
     const text = fieldTitle(field, field.start + start)
-    const key = `fstab:${field.start}:${start}`
+    const key = `fstab:${lineNumber}:${field.start}:${start}`
     return [
       index ? "," : "",
       <span
@@ -82,6 +83,7 @@ const renderOptionFields = (
 }
 
 const renderField = (
+  lineNumber: number,
   field: Field,
   extra: boolean,
   showHover: (
@@ -93,12 +95,12 @@ const renderField = (
   activeKey: string | null,
 ) => {
   if (field.name === "mntops" && !extra) {
-    return renderOptionFields(field, showHover, activeKey)
+    return renderOptionFields(lineNumber, field, showHover, activeKey)
   }
 
   const text = extra ? `extra: ${field.text}` : fieldTitle(field)
   const uuid = fieldUuid(field)
-  const key = `fstab:${field.start}:${field.end}`
+  const key = `fstab:${lineNumber}:${field.start}:${field.end}`
   const active = uuid && activeUuid === uuid || activeKey === key
     ? " active"
     : ""
@@ -131,7 +133,10 @@ const renderFields = (
   return tokens.flatMap(({ field, extra }) => {
     const before = line.raw.slice(cursor, field.start)
     cursor = field.end
-    return [before, renderField(field, extra, showHover, activeUuid, activeKey)]
+    return [
+      before,
+      renderField(line.number, field, extra, showHover, activeUuid, activeKey),
+    ]
   }).concat(renderTail(line.raw.slice(cursor)))
 }
 
@@ -223,26 +228,60 @@ const lsblkClass = (
   ].filter(Boolean).join(" ")
 }
 
+const lsblkColumnHelp = (column: string): string => {
+  if (column === "NAME") {
+    return "NAME: block device name/tree; use as /dev/<name> in fstab"
+  }
+  if (column === "FSTYPE") {
+    return "FSTYPE: on-disk filesystem type; should match fstab field 3"
+  }
+  if (column === "FSVER") return "FSVER: filesystem version reported by blkid"
+  if (column === "LABEL") {
+    return "LABEL: filesystem label; use as LABEL=<label> in fstab"
+  }
+  if (column === "UUID") {
+    return "UUID: filesystem UUID; use as UUID=<uuid> in fstab"
+  }
+  if (column === "FSAVAIL") {
+    return "FSAVAIL: free space available to an unprivileged user"
+  }
+  if (column === "FSUSE%") return "FSUSE%: filesystem usage percentage"
+  if (column === "MOUNTPOINT") return "MOUNTPOINT: current single mount path"
+  if (column === "MOUNTPOINTS") {
+    return "MOUNTPOINTS: current mount paths; compare with fstab field 2"
+  }
+  return `${column}: lsblk -f column`
+}
+
 const lsblkHelp = (column: string, value: string): string => {
   if (value === "") return `${column}: empty`
   if (column === "NAME") {
     const name = cleanDeviceName(value)
     return name ? `device ${name}; disk or partition` : "device tree"
   }
-  if (column === "FSTYPE") return `filesystem type ${value}`
+  if (column === "FSTYPE") {
+    return `filesystem type ${value}; should match fstab field 3`
+  }
   if (column === "FSVER") return `filesystem version ${value}`
-  if (column === "LABEL") return `filesystem label ${value}`
-  if (column === "UUID") return `block device UUID ${value}`
+  if (column === "LABEL") {
+    return `filesystem label ${value}; fstab source LABEL=${value}`
+  }
+  if (column === "UUID") {
+    return `filesystem UUID ${value}; fstab source UUID=${value}`
+  }
   if (column === "FSAVAIL") return `available space ${value}`
   if (column === "FSUSE%") return `used space ${value}`
   if (column === "MOUNTPOINT" || column === "MOUNTPOINTS") {
-    return value === "[SWAP]" ? "active swap" : `mounted at ${value}`
+    return value === "[SWAP]"
+      ? "active swap"
+      : `mounted at ${value}; should match fstab field 2`
   }
   return `${column}: ${value}`
 }
 
 const renderLsblkFallback = (
   line: string,
+  lineIndex: number,
   uuids: Set<string>,
   activeUuid: string | null,
   activeKey: string | null,
@@ -259,7 +298,7 @@ const renderLsblkFallback = (
     const start = match.index ?? 0
     const before = line.slice(cursor, start)
     cursor = start + uuid.length
-    const key = `lsblk:fallback:${start}`
+    const key = `lsblk:fallback:${lineIndex}:${start}`
     return uuids.has(uuid)
       ? [
         before,
@@ -291,7 +330,14 @@ const renderLsblkLine = (
   ) => (event: MouseEvent) => void,
 ) => {
   if (!columns.length) {
-    return renderLsblkFallback(line, uuids, activeUuid, activeKey, showHover)
+    return renderLsblkFallback(
+      line,
+      lineIndex,
+      uuids,
+      activeUuid,
+      activeKey,
+      showHover,
+    )
   }
 
   let cursor = 0
@@ -308,7 +354,7 @@ const renderLsblkLine = (
     const uuid = column.name === "UUID" && uuids.has(value) ? value : undefined
     const key = `lsblk:${lineIndex}:${column.name}:${start}`
     const help = lineIndex === 0
-      ? `${column.name} column`
+      ? lsblkColumnHelp(column.name)
       : lsblkHelp(column.name, value)
     return [
       before,
@@ -360,7 +406,12 @@ function App() {
   const columns = createMemo(() => lsblkColumns(lsblkText()))
   const showHover =
     (value: string, uuid?: string, key?: string) => (event: MouseEvent) => {
-      setHover({ x: event.clientX + 10, y: event.clientY + 10, text: value })
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      setHover({
+        x: Math.max(4, Math.min(rect.left, globalThis.innerWidth - 430)),
+        y: rect.top > 40 ? rect.top - 28 : rect.bottom + 6,
+        text: value,
+      })
       setActiveUuid(uuid ?? null)
       setActiveKey(key ?? null)
     }
@@ -453,16 +504,6 @@ function App() {
             mirror.scrollLeft = event.currentTarget.scrollLeft
           }}
         />
-        <Show when={hover()}>
-          {(item) => (
-            <output
-              class="tip"
-              style={{ left: `${item().x}px`, top: `${item().y}px` }}
-            >
-              {item().text}
-            </output>
-          )}
-        </Show>
       </section>
 
       <section class="lsblk" onMouseLeave={hideHover}>
@@ -515,6 +556,17 @@ function App() {
             {(item) => <li class={item.severity}>{diagnosticText(item)}</li>}
           </For>
         </ul>
+      </Show>
+
+      <Show when={hover()}>
+        {(item) => (
+          <output
+            class="tip"
+            style={{ left: `${item().x}px`, top: `${item().y}px` }}
+          >
+            {item().text}
+          </output>
+        )}
       </Show>
     </main>
   )
