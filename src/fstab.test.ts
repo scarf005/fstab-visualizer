@@ -3,6 +3,7 @@
 import {
   decodeFstabEscapes,
   explainField,
+  explainFieldAt,
   fieldLabel,
   parseFstab,
   prettifyFstab,
@@ -184,6 +185,17 @@ Deno.test("explains options", () => {
   assertEquals(
     explainField(field("mntops", "defaults,noatime,uid=1000,x-unknown")),
     "defaults: rw,suid,dev,exec,auto,nouser,async; noatime: skip access time; uid=1000: user id; x-unknown",
+  )
+})
+
+Deno.test("explains option at column", () => {
+  const options = field("mntops", "rw,nosuid,nodev,x-systemd.automount")
+  assertEquals(explainFieldAt(options, 0), "rw: read-write")
+  assertEquals(explainFieldAt(options, 3), "nosuid: block suid/sgid")
+  assertEquals(explainFieldAt(options, 10), "nodev: block device files")
+  assertEquals(
+    explainFieldAt(options, 16),
+    "x-systemd.automount: systemd automount",
   )
 })
 

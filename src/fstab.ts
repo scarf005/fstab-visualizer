@@ -106,6 +106,7 @@ const optionHelp: Record<string, string> = {
   discard: "TRIM",
   exec: "allow executables",
   gid: "group id",
+  mode: "permission mode",
   noatime: "skip access time",
   noauto: "skip mount -a",
   nodev: "block device files",
@@ -114,12 +115,15 @@ const optionHelp: Record<string, string> = {
   nouser: "root only",
   relatime: "relative access time",
   remount: "remount",
+  subvol: "Btrfs subvolume",
   ro: "read-only",
   rw: "read-write",
   strictatime: "strict access time",
   suid: "suid/sgid enabled",
+  sw: "swap defaults",
   sync: "sync I/O",
   uid: "user id",
+  umask: "permission mask",
   user: "user mount allowed",
   users: "any user unmount",
   x_systemd_automount: "systemd automount",
@@ -159,7 +163,7 @@ const diagnostic = (
 const isInteger = (value: string) => /^\d+$/.test(value)
 
 const optionKey = (option: string) =>
-  option.replace(/=.*/, "").replace(/-/g, "_")
+  option.replace(/=.*/, "").replace(/[-.]/g, "_")
 
 const validateFields = (
   line: number,
@@ -353,6 +357,11 @@ const sourceHint = (value: string): string =>
     ? `device/path ${decodeFstabEscapes(value)}`
     : decodeFstabEscapes(value)
 
+const explainOption = (option: string): string => {
+  const key = optionKey(option)
+  return optionHelp[key] ? `${option}: ${optionHelp[key]}` : option
+}
+
 export const explainField = (field: Field): string => {
   if (field.name === "spec") return sourceHint(field.text)
   if (field.name === "file") return `mount ${decodeFstabEscapes(field.text)}`
@@ -369,10 +378,21 @@ export const explainField = (field: Field): string => {
   }
 
   const parts = field.text.split(",").filter(Boolean)
-  return parts.length === 0 ? "no options" : parts.map((part) => {
-    const key = optionKey(part)
-    return optionHelp[key] ? `${part}: ${optionHelp[key]}` : part
-  }).join("; ")
+  return parts.length === 0 ? "no options" : parts.map(explainOption).join("; ")
+}
+
+export const explainFieldAt = (field: Field, column: number): string => {
+  if (field.name !== "mntops") return explainField(field)
+
+  const relative = Math.max(0, column - field.start)
+  let cursor = 0
+  const option = field.text.split(",").find((part) => {
+    const start = cursor
+    const end = cursor + part.length
+    cursor = end + 1
+    return relative >= start && relative <= end
+  })
+  return option ? explainOption(option) : explainField(field)
 }
 
 export const fieldLabel = (name: FieldName): string => labels[name]

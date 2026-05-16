@@ -1,7 +1,14 @@
 import "./App.css"
 import { createMemo, createSignal, For, Show } from "solid-js"
-import { explainField, fieldLabel, parseFstab, prettifyFstab } from "./fstab.ts"
-import type { Field, ParsedLine } from "./fstab.ts"
+import {
+  explainField,
+  explainFieldAt,
+  fieldLabel,
+  parseFstab,
+  prettifyFstab,
+} from "./fstab.ts"
+import type { Diagnostic, Field, ParsedLine } from "./fstab.ts"
+import { parseLsblk, verifyFstabWithLsblk } from "./lsblk.ts"
 
 type Theme = "black" | "white"
 
@@ -17,8 +24,8 @@ UUID=fb2d2f54-b8c1-4f2a-baba-d8a4bb3a4fd0 /home ext4 defaults        0 2
 tmpfs /tmp tmpfs rw,nosuid,nodev,noexec,relatime 0 0
 server:/export /mnt nfs4 noauto,x-systemd.automount 0 0`
 
-const fieldTitle = (field: Field) =>
-  `${fieldLabel(field.name)}: ${explainField(field)}`
+const fieldTitle = (field: Field, column = field.start) =>
+  `${fieldLabel(field.name)}: ${explainFieldAt(field, column)}`
 
 const tokenClass = (field: Field, extra = false) =>
   `tok ${extra ? "extra" : field.name}`
@@ -49,10 +56,12 @@ const renderFields = (line: ParsedLine) => {
   }).concat(renderTail(line.raw.slice(cursor)))
 }
 
-const lineClass = (line: ParsedLine) =>
-  line.diagnostics.some((item) => item.severity === "error")
+const lineClass = (line: ParsedLine, diagnostics: Diagnostic[]) =>
+  diagnostics.some((item) =>
+      item.line === line.number && item.severity === "error"
+    )
     ? "line bad"
-    : line.diagnostics.length
+    : diagnostics.some((item) => item.line === line.number)
     ? "line warn"
     : "line"
 
@@ -73,17 +82,26 @@ const fieldAt = (line: ParsedLine | undefined, column: number) =>
     )
     : undefined
 
+const diagnosticText = (item: Diagnostic) =>
+  item.line ? `L${item.line}:${item.column} ${item.message}` : item.message
+
 function App() {
   let mirror!: HTMLPreElement
   const [text, setText] = createSignal(initial)
+  const [lsblkText, setLsblkText] = createSignal("")
   const [theme, setTheme] = createSignal<Theme>("black")
   const [hover, setHover] = createSignal<Hover | null>(null)
   const parsed = createMemo(() => parseFstab(text()))
+  const lsblk = createMemo(() => parseLsblk(lsblkText()))
+  const diagnostics = createMemo(() => [
+    ...parsed().diagnostics,
+    ...verifyFstabWithLsblk(parsed(), lsblk()),
+  ])
   const errors = createMemo(() =>
-    parsed().diagnostics.filter((item) => item.severity === "error").length
+    diagnostics().filter((item) => item.severity === "error").length
   )
   const warnings = createMemo(() =>
-    parsed().diagnostics.filter((item) => item.severity === "warn").length
+    diagnostics().filter((item) => item.severity === "warn").length
   )
   const status = createMemo(() =>
     errors() || warnings() ? `${errors()} error, ${warnings()} warn` : "ok"
@@ -110,7 +128,7 @@ function App() {
         ? {
           x: event.clientX + 10,
           y: event.clientY + 10,
-          text: fieldTitle(field),
+          text: fieldTitle(field, column),
         }
         : null,
     )
@@ -139,7 +157,7 @@ function App() {
       <section class="editor">
         <pre ref={mirror} class="highlight" aria-hidden="true"><code>
           <For each={parsed().lines}>{(line) => (
-            <div class={lineClass(line)}>
+            <div class={lineClass(line, diagnostics())}>
               <Show when={line.kind === "entry"} fallback={<span class={line.kind}>{line.raw || " "}</span>}>
                 {renderFields(line)}
               </Show>
@@ -170,14 +188,21 @@ function App() {
         </Show>
       </section>
 
-      <Show when={parsed().diagnostics.length}>
+      <section class="lsblk">
+        <label for="lsblk">lsblk -f</label>
+        <textarea
+          id="lsblk"
+          aria-label="lsblk -f"
+          spellcheck={false}
+          value={lsblkText()}
+          onInput={(event) => setLsblkText(event.currentTarget.value)}
+        />
+      </section>
+
+      <Show when={diagnostics().length}>
         <ul>
-          <For each={parsed().diagnostics}>
-            {(item) => (
-              <li class={item.severity}>
-                L{item.line}:{item.column} {item.message}
-              </li>
-            )}
+          <For each={diagnostics()}>
+            {(item) => <li class={item.severity}>{diagnosticText(item)}</li>}
           </For>
         </ul>
       </Show>
