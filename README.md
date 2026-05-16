@@ -17,3 +17,8 @@ Build production assets:
 ```
 $ deno task build
 ```
+
+GitHub Pages deploys from `.github/workflows/deploy-pages.yml` on pushes to
+`main`.
+
+Production URL: <https://scarf005.github.io/fstab-visualizer/>
