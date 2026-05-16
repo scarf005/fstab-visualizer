@@ -82,6 +82,8 @@ strong {
   align-items: center;
   color: var(--fg);
   display: inline-flex;
+  flex: 0 0 auto;
+  line-height: 0;
   margin-left: auto;
 }
 
